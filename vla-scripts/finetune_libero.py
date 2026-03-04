@@ -105,7 +105,7 @@ class Wrapped_Model(torch.nn.Module):
 class FinetuneConfig:
     # fmt: off
     vla_path: str = "/path/to/your/pretrained-univla-7b"            # Path to your local UniVLA path
-    lam_path: str = "latent_action_model/logs/task_centric_lam_stage2/epoch=0-step=200000.ckpt"
+    lam_path: str = "/root/autodl-tmp/workspace/hmx/ckpt/univla-latent-action-model/lam-stage-2.ckpt"
     # Directory Paths
     data_root_dir: Path = Path("/LIBERO/modified_libero_rlds")      # Path to Open-X dataset directory
     dataset_name: str = "libero_spatial_no_noops"                   # Name of fine-tuning dataset (e.g., `droid_wipe`)

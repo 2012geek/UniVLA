@@ -1,8 +1,8 @@
 #!/bin/bash
 ################################################################################
-# End-to-End Fine-tuning with Pretrained VLM
+# Fine-tuning Script for EmbodX Baseline
 #
-# This script fine-tunes pretrained VLA model on LIBERO dataset using LoRA
+# This script fine-tunes the pretrained VLA model on LIBERO dataset using LoRA
 # with all parameters trainable (VLM not frozen).
 #
 # RESULTS OBTAINED (to reproduce):
@@ -13,7 +13,8 @@
 # - Evaluation on libero_spatial: 47.2% success (236/500 episodes)
 #
 # EXACT SETTINGS USED FOR ABOVE RESULTS:
-# - VLA path: /root/autodl-tmp/workspace/hmx/ckpt/univla-7b-bridge-pt
+# - VLA path: ckpt/univla-7b-bridge-pt
+# - LAM path: ckpt/univla-latent-action-model/lam-stage-2.ckpt
 # - Dataset: libero_spatial_no_noops (from BridgeV2 + LIBERO)
 # - Batch size: 8, Grad accumulation: 8 (effective batch: 64)
 # - Learning rate: 1.75e-4 (SCALED from 3.5e-4 for batch size 8 vs 16)
@@ -54,7 +55,7 @@ WANDB_ENTITY="opendrivelab"
 RUN_ID_NOTE="end2end"
 
 echo "========================================="
-echo "End-to-End Fine-tuning"
+echo "Fine-tuning for EmbodX Baseline"
 echo "========================================="
 echo "VLA Path: $VLA_PATH"
 echo "Dataset: $DATASET_NAME"

@@ -1,11 +1,11 @@
 #!/bin/bash
 ################################################################################
-# Evaluation on LIBERO Tasks
+# Evaluation Script for EmbodX Baseline
 #
 # This script evaluates the fine-tuned model on LIBERO task suites.
 #
 # RESULTS OBTAINED (to reproduce):
-# - Overall: 47.2% success (236/500 episodes)
+# - Overall: 47.2% success rate (236/500 episodes)
 #
 # IMPORTANT FIX APPLIED:
 # - Added: model.base_model.model.norm_stats = norm_stats to fix norm_stats issue
@@ -23,9 +23,6 @@ set -e
 # Model configuration
 MODEL_FAMILY="openvla"
 BASE_VLA_PATH="/root/autodl-tmp/workspace/hmx/ckpt/univla-7b-bridge-pt"
-
-# Checkpoint directory - update to match your actual training run
-# The run_id_note in run_finetune.sh determines the checkpoint name suffix
 PRETRAINED_CHECKPOINT="runs/univla-7b-bridge-pt+libero_spatial_no_noops+b8+lr-0.000175+lora-r32+dropout-0.0--end2end--image_aug=w-LowLevelDecoder-ws-12"
 
 # Use specific checkpoint step (e.g., action_decoder-30000.pt)
@@ -46,7 +43,7 @@ CENTER_CROP=True            # Set True if trained with image augmentations
 
 # Logging configuration
 LOCAL_LOG_DIR="./experiments/eval_logs"
-RUN_ID_NOTE=""
+RUN_ID_NOTE="baseline"
 
 # WandB configuration (optional)
 USE_WANDB=False
@@ -57,7 +54,7 @@ WANDB_ENTITY="YOUR_WANDB_ENTITY"
 SEED=7
 
 echo "========================================="
-echo "Evaluation"
+echo "Evaluation for EmbodX Baseline"
 echo "========================================="
 echo "Model Family: $MODEL_FAMILY"
 echo "Base VLA Path: $BASE_VLA_PATH"

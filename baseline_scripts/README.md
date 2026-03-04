@@ -1,6 +1,56 @@
-# UniVLA Fine-tuning and Evaluation Scripts
+# EmbodX Baseline: UniVLA Fine-tuning and Evaluation Scripts
 
-This directory contains scripts for fine-tuning and evaluating UniVLA models on LIBERO tasks.
+This directory contains baseline scripts for fine-tuning and evaluating UniVLA models on LIBERO tasks.
+
+---
+
+## Prerequisites: External Data and Checkpoints
+
+Before running these scripts, you need to download the following external datasets and checkpoints.
+
+### 1. Pretrained VLA Model (UniVLA)
+
+Download the pretrained UniVLA model from HuggingFace:
+
+```bash
+# Create checkpoint directory
+mkdir -p ckpt/univla-7b-bridge-pt
+
+# Download from HuggingFace
+# Link: https://huggingface.co/opendrivelab/univla-7b-bridge-pt
+# Or use git lfs:
+git lfs clone https://huggingface.co/opendrivelab/univla-7b-bridge-pt ckpt/univla-7b-bridge-pt
+```
+
+### 2. Latent Action Model (LAM) Checkpoint
+
+Download the LAM checkpoint for action tokenization:
+
+```bash
+# Create checkpoint directory
+mkdir -p ckpt/univla-latent-action-model
+
+# Download from HuggingFace
+# Link: https://huggingface.co/opendrivelab/univla-7b-bridge-pt/resolve/main/lam-stage-2.ckpt
+# Or use wget:
+wget -O ckpt/univla-latent-action-model/lam-stage-2.ckpt \
+  https://huggingface.co/opendrivelab/univla-7b-bridge-pt/resolve/main/lam-stage-2.ckpt
+```
+
+### 3. LIBERO Dataset
+
+Download and prepare the LIBERO RLDS dataset:
+
+```bash
+# Dataset location (modify if different)
+mkdir -p /LIBERO/modified_libero_rlds
+
+# Download LIBERO RLDS dataset
+# Link: See UniVLA/README.md for download instructions
+# The dataset should contain libero_spatial_no_noops and other task variants
+```
+
+**LIBERO Official:** https://libero-project.github.io/
 
 ---
 
@@ -21,7 +71,7 @@ This script fine-tunes the pretrained VLA model on LIBERO dataset using LoRA wit
 ### Exact Configuration Used
 
 ```bash
-VLA_PATH="/root/autodl-tmp/workspace/hmx/ckpt/univla-7b-bridge-pt"
+VLA_PATH="ckpt/univla-7b-bridge-pt"
 DATASET_NAME="libero_spatial_no_noops"
 BATCH_SIZE=8
 GRAD_ACCUM_STEPS=8  # Effective batch = 64
@@ -33,12 +83,13 @@ LORA_DROPOUT=0.0
 WINDOW_SIZE=12
 IMAGE_AUG=True
 FREEZE_VLA=False  # End-to-end, VLM not frozen
+LAM_PATH="ckpt/univla-latent-action-model/lam-stage-2.ckpt"
 ```
 
 ### To Run Fine-tuning
 
 ```bash
-./scripts/run_finetune.sh
+./baseline_scripts/run_finetune.sh
 ```
 
 ---
@@ -88,8 +139,7 @@ please choose from: dict_keys(['bridge_oxe'])
 
 ```bash
 MODEL_FAMILY="openvla"
-BASE_VLA_PATH="/root/autodl-tmp/workspace/hmx/ckpt/univla-7b-bridge-pt"
-# Update PRETRAINED_CHECKPOINT to match your actual saved checkpoint directory
+BASE_VLA_PATH="ckpt/univla-7b-bridge-pt"
 PRETRAINED_CHECKPOINT="runs/univla-7b-bridge-pt+libero_spatial_no_noops+b8+lr-0.000175+lora-r32+dropout-0.0--end2end--image_aug=w-LowLevelDecoder-ws-12"
 ACTION_DECODER_PATH="${PRETRAINED_CHECKPOINT}/action_decoder-30000.pt"
 TASK_SUTE_NAME="libero_spatial"
@@ -98,15 +148,13 @@ WINDOW_SIZE=12
 CENTER_CROP=True
 ```
 
-**Note**: The `run_id_note` variable in `run_finetune.sh` determines the checkpoint name suffix. Update `PRETRAINED_CHECKPOINT` to match your actual saved checkpoint directory.
-
 ### To Run Evaluation
 
 ```bash
-./scripts/run_eval.sh
+./baseline_scripts/run_eval.sh
 ```
 
-To evaluate with a specific checkpoint (not 30000), edit the script:
+To evaluate with a specific checkpoint (not 30000), edit `ACTION_DECODER_PATH` in the script:
 
 ```bash
 # Use action_decoder-5000.pt, action_decoder-10000.pt, etc.
@@ -125,7 +173,7 @@ The evaluation script supports multiple LIBERO task suites:
 - `libero_10`: 10 tasks
 - `libero_90`: 90 tasks (longer evaluation)
 
-To change task suite, edit the `TASK_SUTE_NAME` variable in `run_eval.sh`:
+To change task suite, edit `TASK_SUTE_NAME` variable in `run_eval.sh`:
 
 ```bash
 TASK_SUTE_NAME="libero_object"  # or libero_goal, libero_10, libero_90
@@ -144,7 +192,7 @@ TASK_SUTE_NAME="libero_object"  # or libero_goal, libero_10, libero_90
 
 ## Notes
 
-1. **Learning Rate Scaling**: For smaller batch sizes, scale the learning rate proportionally. The original used batch size 16 with lr=3.5e-4. For batch size 8, we used lr=1.75e-4.
+1. **Learning Rate Scaling**: For smaller batch sizes, scale learning rate proportionally. The original used batch size 16 with lr=3.5e-4. For batch size 8, we used lr=1.75e-4.
 
 2. **LoRA Configuration**: The LoRA rank (32) and dropout (0.0) were used for fine-tuning.
 
@@ -156,4 +204,4 @@ TASK_SUTE_NAME="libero_object"  # or libero_goal, libero_10, libero_90
 
 6. **Checkpoint Selection**: Multiple checkpoints were saved during training. You can evaluate any checkpoint to see how performance evolves with training progress.
 
-7. **Norm Stats Fix**: When using LoRA-fine-tuned models for evaluation, ensure `model.base_model.model.norm_stats` is set to the correct dataset statistics (see the Important Fix section above).
+7. **Norm Stats Fix**: When using LoRA-fine-tuned models for evaluation, ensure `model.base_model.model.norm_stats` is set to correct dataset statistics (see Important Fix section above).
