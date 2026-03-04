@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# Step 1: End-to-End Fine-tuning with Pretrained VLM
+# End-to-End Fine-tuning with Pretrained VLM
 #
 # This script fine-tunes pretrained VLA model on LIBERO dataset using LoRA
 # with all parameters trainable (VLM not frozen).
@@ -10,7 +10,7 @@
 # - Training loss: 1.26 -> 0.66
 # - Training accuracy: 56% -> 81%
 # - Checkpoints saved: 5000, 10000, 15000, 20000, 25000, 30000
-# - Evaluation on libero_spatial (Task 1 partial): 70.6% success (12/17 episodes)
+# - Evaluation on libero_spatial: 47.2% success (236/500 episodes)
 #
 # EXACT SETTINGS USED FOR ABOVE RESULTS:
 # - VLA path: /root/autodl-tmp/workspace/hmx/ckpt/univla-7b-bridge-pt
@@ -46,15 +46,15 @@ USE_QUANTIZATION=False
 
 # LoRA configuration
 USE_LORA=True
-FREEZE_VLA=False  # Step 1: End-to-end, VLM not frozen
+FREEZE_VLA=False  # End-to-end, VLM not frozen
 
 # WandB configuration
 WANDB_PROJECT="finetune-LIBERO"
 WANDB_ENTITY="opendrivelab"
-RUN_ID_NOTE="step1-end2end"
+RUN_ID_NOTE="end2end"
 
 echo "========================================="
-echo "Step 1: End-to-End Fine-tuning"
+echo "End-to-End Fine-tuning"
 echo "========================================="
 echo "VLA Path: $VLA_PATH"
 echo "Dataset: $DATASET_NAME"
@@ -90,5 +90,5 @@ python3 vla-scripts/finetune_libero.py \
     --run_id_note "$RUN_ID_NOTE"
 
 echo ""
-echo "Step 1 fine-tuning completed!"
+echo "Fine-tuning completed!"
 echo "Checkpoints saved in: $RUN_DIR"

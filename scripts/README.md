@@ -4,7 +4,7 @@ This directory contains scripts for fine-tuning and evaluating UniVLA models on 
 
 ---
 
-## Fine-tuning Script: `run_step1_finetune.sh`
+## Fine-tuning Script: `run_finetune.sh`
 
 This script fine-tunes the pretrained VLA model on LIBERO dataset using LoRA with all parameters trainable.
 
@@ -38,12 +38,12 @@ FREEZE_VLA=False  # End-to-end, VLM not frozen
 ### To Run Fine-tuning
 
 ```bash
-./scripts/run_step1_finetune.sh
+./scripts/run_finetune.sh
 ```
 
 ---
 
-## Evaluation Script: `run_step1_eval.sh`
+## Evaluation Script: `run_eval.sh`
 
 This script evaluates the fine-tuned model on LIBERO task suites.
 
@@ -89,7 +89,8 @@ please choose from: dict_keys(['bridge_oxe'])
 ```bash
 MODEL_FAMILY="openvla"
 BASE_VLA_PATH="/root/autodl-tmp/workspace/hmx/ckpt/univla-7b-bridge-pt"
-PRETRAINED_CHECKPOINT="runs/univla-7b-bridge-pt+libero_spatial_no_noops+b8+lr-0.000175+lora-r32+dropout-0.0--step1-end2end--image_aug=w-LowLevelDecoder-ws-12"
+# Update PRETRAINED_CHECKPOINT to match your actual saved checkpoint directory
+PRETRAINED_CHECKPOINT="runs/univla-7b-bridge-pt+libero_spatial_no_noops+b8+lr-0.000175+lora-r32+dropout-0.0--end2end--image_aug=w-LowLevelDecoder-ws-12"
 ACTION_DECODER_PATH="${PRETRAINED_CHECKPOINT}/action_decoder-30000.pt"
 TASK_SUTE_NAME="libero_spatial"
 NUM_TRIALS_PER_TASK=50
@@ -97,10 +98,12 @@ WINDOW_SIZE=12
 CENTER_CROP=True
 ```
 
+**Note**: The `run_id_note` variable in `run_finetune.sh` determines the checkpoint name suffix. Update `PRETRAINED_CHECKPOINT` to match your actual saved checkpoint directory.
+
 ### To Run Evaluation
 
 ```bash
-./scripts/run_step1_eval.sh
+./scripts/run_eval.sh
 ```
 
 To evaluate with a specific checkpoint (not 30000), edit the script:
@@ -122,7 +125,7 @@ The evaluation script supports multiple LIBERO task suites:
 - `libero_10`: 10 tasks
 - `libero_90`: 90 tasks (longer evaluation)
 
-To change task suite, edit the `TASK_SUTE_NAME` variable in `run_step1_eval.sh`:
+To change task suite, edit the `TASK_SUTE_NAME` variable in `run_eval.sh`:
 
 ```bash
 TASK_SUTE_NAME="libero_object"  # or libero_goal, libero_10, libero_90
@@ -134,8 +137,8 @@ TASK_SUTE_NAME="libero_object"  # or libero_goal, libero_10, libero_90
 
 | Script | Purpose |
 |--------|---------|
-| `run_step1_finetune.sh` | Fine-tune pretrained VLM on LIBERO |
-| `run_step1_eval.sh` | Evaluate fine-tuned model |
+| `run_finetune.sh` | Fine-tune pretrained VLM on LIBERO |
+| `run_eval.sh` | Evaluate fine-tuned model |
 
 ---
 
