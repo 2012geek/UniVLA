@@ -10,7 +10,7 @@ import torch.nn as nn
 import torchvision.transforms as transforms
 import torch.distributed as dist
 import tqdm
-from ema_pytorch import EMA
+# from ema_pytorch import EMA  # Not available, commented out
 from accelerate import PartialState
 from peft import LoraConfig, PeftModel, get_peft_model, prepare_model_for_kbit_training
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -231,8 +231,18 @@ def finetune(cfg: FinetuneConfig) -> None:
     trainable_total_params = sum(p.numel() for p in wrapped_model.parameters() if p.requires_grad)
     print('Total Trainable Params: ', trainable_total_params)
     # Wrap VLA in PyTorch DDP Wrapper for Multi-GPU Training
-    wrapped_model = DDP(wrapped_model, device_ids=[device_id], find_unused_parameters=True, gradient_as_bucket_view=True)
-    
+    # Skip DDP for single GPU
+    if torch.cuda.device_count() > 1:
+        wrapped_model = DDP(wrapped_model, device_ids=[device_id], find_unused_parameters=True, gradient_as_bucket_view=True)
+        print(f'Using DDP with {torch.cuda.device_count()} GPUs')
+        use_ddp = True
+    else:
+        print('Single GPU training - skipping DDP wrapper')
+        use_ddp = False
+
+    # Helper to get model from DDP wrapper
+    def get_model(m):
+        return m.module if isinstance(m, DDP) else m
 
     # Create Optimizer =>> note that we default to a simple constant learning rate!
     trainable_params = [param for param in wrapped_model.parameters() if param.requires_grad]
@@ -259,9 +269,11 @@ def finetune(cfg: FinetuneConfig) -> None:
     for key in lam_ckpt.keys():
         new_ckpt[key.replace("lam.", "")] = lam_ckpt[key]
 
+    # Load LAM to CPU first to avoid OOM, then move to GPU
     latent_action_model.load_state_dict(new_ckpt, strict=True)
+    latent_action_model = latent_action_model.to('cpu').eval()
     latent_action_model = latent_action_model.to(device_id).eval()
-    
+
     batch_transform = RLDSBatchTransformLIBERO_withHis(
         latent_action_model,
         processor.tokenizer,
@@ -276,7 +288,7 @@ def finetune(cfg: FinetuneConfig) -> None:
         cfg.data_root_dir,
         cfg.dataset_name,
         batch_transform,
-        resize_resolution=tuple(wrapped_model.module.vla.config.image_sizes),
+        resize_resolution=tuple(get_model(wrapped_model).vla.config.image_sizes),
         shuffle_buffer_size=cfg.shuffle_buffer_size,
         image_aug=cfg.image_aug,
         window_size=cfg.window_size + 1,        # for constructing history latent actions
@@ -284,7 +296,7 @@ def finetune(cfg: FinetuneConfig) -> None:
     )
 
     # [Important] Save Dataset Statistics =>> used to de-normalize actions for inference!
-    if distributed_state.is_main_process:
+    if not use_ddp or distributed_state.is_main_process:
         save_dataset_statistics(vla_dataset.dataset_statistics, run_dir)
 
     # Create Collator and DataLoader
@@ -300,8 +312,13 @@ def finetune(cfg: FinetuneConfig) -> None:
     )
 
     # Initialize Logging =>> W&B
-    if distributed_state.is_main_process:
-        wandb.init(entity=cfg.wandb_entity, project=cfg.wandb_project, name=f"ft+{exp_id}")
+    wandb_run = None
+    if not use_ddp or distributed_state.is_main_process:
+        try:
+            wandb_run = wandb.init(entity=cfg.wandb_entity, project=cfg.wandb_project, name=f"ft+{exp_id}")
+        except Exception as e:
+            print(f"Warning: W&B initialization failed: {e}")
+            print("Continuing training without W&B logging...")
 
     # Deque to store recent train metrics (used for computing smoothened metrics for gradient accumulation)
     recent_losses = deque(maxlen=cfg.grad_accumulation_steps)
@@ -332,7 +349,7 @@ def finetune(cfg: FinetuneConfig) -> None:
             normalized_loss.backward()
 
             # Compute Accuracy and L1 Loss for Logging
-            action_logits = output.logits[:, wrapped_model.module.vla.vision_backbone.featurizer.patch_embed.num_patches : -1]
+            action_logits = output.logits[:, get_model(wrapped_model).vla.vision_backbone.featurizer.patch_embed.num_patches : -1]
             action_preds = action_logits.argmax(dim=2)
             action_gt = batch["labels"][:, 1:].to(action_preds.device)
             mask = action_gt > 32000
@@ -356,18 +373,21 @@ def finetune(cfg: FinetuneConfig) -> None:
             smoothened_action_accuracy = sum(recent_action_accuracies) / len(recent_action_accuracies)
 
             # Push Metrics to W&B (every 5 gradient steps)
-            if distributed_state.is_main_process and gradient_step_idx % 5 == 0:
-                
-                wandb.log(
-                    {
-                        "train_loss": smoothened_loss,
-                        "latent_action_accuracy": smoothened_action_accuracy,
-                        "action_loss": act_loss.item(),
-                        "action_loss_1step": loss_one_step.item(),
-                        "lr": optimizer.state_dict()['param_groups'][0]['lr'],
-                    },
-                    step=gradient_step_idx,
-                )
+            if (not use_ddp or distributed_state.is_main_process) and gradient_step_idx % 5 == 0:
+
+                print(f"[Step {gradient_step_idx:5d}] train_loss={smoothened_loss:.4f}, action_loss={act_loss.item():.4f}, action_loss_1step={loss_one_step.item():.4f}, acc={smoothened_action_accuracy:.4f}, lr={optimizer.state_dict()['param_groups'][0]['lr']:.6e}")
+
+                if wandb_run is not None:
+                    wandb.log(
+                        {
+                            "train_loss": smoothened_loss,
+                            "latent_action_accuracy": smoothened_action_accuracy,
+                            "action_loss": act_loss.item(),
+                            "action_loss_1step": loss_one_step.item(),
+                            "lr": optimizer.state_dict()['param_groups'][0]['lr'],
+                        },
+                        step=gradient_step_idx,
+                    )
 
             # Optimizer Step
             if (batch_idx + 1) % cfg.grad_accumulation_steps == 0:
@@ -378,7 +398,7 @@ def finetune(cfg: FinetuneConfig) -> None:
 
             # Save Model Checkpoint =>> by default, only keeps the latest checkpoint, continually overwriting it!
             if gradient_step_idx > 0 and gradient_step_idx % cfg.save_steps == 0:
-                if distributed_state.is_main_process:
+                if not use_ddp or distributed_state.is_main_process:
                     print(f"Saving Model Checkpoint for Step {gradient_step_idx}")
 
                     # If LoRA, we first save adapter weights, then merge into full model; otherwise, default save!
@@ -387,26 +407,31 @@ def finetune(cfg: FinetuneConfig) -> None:
                     # Save Processor & Weights
                     if not cfg.freeze_vla:
                         processor.save_pretrained(run_dir)
-                        wrapped_model.module.vla.save_pretrained(save_dir)
+                        get_model(wrapped_model).vla.save_pretrained(save_dir)
 
                     # Save low-level policy
-                    torch.save(wrapped_model.module.action_decoder.state_dict(), str(run_dir) + f'/action_decoder-{gradient_step_idx}.pt')
+                    torch.save(get_model(wrapped_model).action_decoder.state_dict(), str(run_dir) + f'/action_decoder-{gradient_step_idx}.pt')
 
                 # Wait for processor and adapter weights to be saved by main process
-                dist.barrier()
+                if use_ddp:
+                    dist.barrier()
 
                 # Merge LoRA weights into model backbone for faster inference
                 #   =>> Note that merging is slow and can be done post-hoc to speed up training
+                # FIX: Reuse existing model in memory to avoid OOM during merge
                 if cfg.use_lora:
-                    base_vla = AutoModelForVision2Seq.from_pretrained(
-                        cfg.vla_path, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True, trust_remote_code=True
-                    )
-                    merged_vla = PeftModel.from_pretrained(base_vla, adapter_dir)
-                    merged_vla = merged_vla.merge_and_unload()
-                    if distributed_state.is_main_process:
+                    # Use existing model (get_model) which is already loaded in memory
+                    base_vla = get_model(wrapped_model)
+                    # Load LoRA adapter (already applied to vla during training)
+                    # No need to reload - vla already has LoRA wrappers from training
+                    # Just use the existing vla directly
+                    # merged_vla = merged_vla.merge_and_unload()  # DISABLED: Sequential+Tanh not supported by PEFT merge
+                    if not use_ddp or distributed_state.is_main_process:
                         if cfg.save_latest_checkpoint_only:
                             # Overwrite latest checkpoint
-                            merged_vla.save_pretrained(run_dir)
+                            # Save model with LoRA adapter (no merge - merge_and_unload disabled)
+                            # Note: model has LoRA applied, will be loaded as base + adapter during inference
+                            get_model(wrapped_model).vla.save_pretrained(run_dir)
 
                             print(f"Saved Model Checkpoint for Step {gradient_step_idx} at: {run_dir}")
                         else:
@@ -424,7 +449,8 @@ def finetune(cfg: FinetuneConfig) -> None:
                             print(f"Saved Model Checkpoint for Step {gradient_step_idx} at: {checkpoint_dir}")
 
                 # Block on Main Process Checkpointing
-                dist.barrier()
+                if use_ddp:
+                    dist.barrier()
 
             # Stop training when max_steps is reached
             if gradient_step_idx == cfg.max_steps:

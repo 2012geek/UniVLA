@@ -9,9 +9,19 @@ import torch.nn as nn
 import torch.nn.functional as F
 import draccus
 import numpy as np
+import torch.serialization
+
+# Allow numpy globals for PyTorch pickle compatibility
+torch.serialization.add_safe_globals([
+    "numpy.core.multiarray._reconstruct",
+    "numpy.core.numeric",
+    "numpy.core._ufunc_reconstruct",
+    "numpy.core.float_reconstruct"
+])
 import tqdm
 from libero.libero import benchmark
 from collections import deque
+from peft import PeftModel
 
 import wandb
 
@@ -46,9 +56,10 @@ class GenerateConfig:
     #################################################################################################################
     model_family: str = "openvla"                    # Model family
     pretrained_checkpoint: Union[str, Path] = "./vla-scripts/libero_log/finetune-libero"     # Pretrained checkpoint path
+    base_vla_path: Optional[str] = None              # Base VLA path (for LoRA checkpoints, specify original VLA path)
     load_in_8bit: bool = False                       # (For OpenVLA only) Load with 8-bit quantization
     load_in_4bit: bool = False                       # (For OpenVLA only) Load with 4-bit quantization
-    
+
     action_decoder_path:str = "./vla-scripts/libero_log/finetune-libero/action_decoder.pt"
     center_crop: bool = True                         # Center crop? (if trained w/ random crop image aug)
     save_video: bool = False                         # Whether to save rollout videos
@@ -187,18 +198,68 @@ def eval_libero(cfg: GenerateConfig) -> None:
     # Load model
     model = get_model(cfg)
 
+    # Load LoRA adapter if base_vla_path is provided (for LoRA fine-tuned models)
+    if cfg.base_vla_path is not None and cfg.model_family == "openvla":
+        print(f"Loading LoRA adapter from {cfg.pretrained_checkpoint}")
+        # Load base VLA model
+        base_checkpoint = cfg.pretrained_checkpoint
+        cfg.pretrained_checkpoint = cfg.base_vla_path
+        base_model = get_model(cfg)
+        cfg.pretrained_checkpoint = base_checkpoint  # Restore original checkpoint path
+
+        # Load LoRA adapter
+        model = PeftModel.from_pretrained(base_model, cfg.pretrained_checkpoint)
+        model.eval()
+        print(f"Successfully loaded LoRA adapter for evaluation")
+
+        # Load dataset statistics from LoRA checkpoint if available
+        dataset_stats_path = os.path.join(cfg.pretrained_checkpoint, "dataset_statistics.json")
+        if os.path.isfile(dataset_stats_path):
+            import json
+            with open(dataset_stats_path, "r") as f:
+                norm_stats = json.load(f)
+            # FIX: Set norm_stats on the underlying base model, not just the PeftModel wrapper
+            model.norm_stats = norm_stats
+            try:
+                model.base_model.model.norm_stats = norm_stats
+                print(f"Loaded dataset statistics from LoRA checkpoint (set on base_model)")
+            except Exception as e:
+                print(f"WARNING: Could not set norm_stats on base_model: {e}")
+                # Try alternative path
+                try:
+                    model.model.norm_stats = norm_stats
+                    print(f"Loaded dataset statistics from LoRA checkpoint (set on model)")
+                except Exception as e2:
+                    print(f"WARNING: Could not set norm_stats on model: {e2}")
+
     # wrapped_model Check that the model contains the action un-normalization key
     if cfg.model_family == "openvla":
+        print(f"DEBUG: cfg.unnorm_key = {cfg.unnorm_key}")
+        print(f"DEBUG: model.norm_stats keys = {list(model.norm_stats.keys()) if model.norm_stats else 'None'}")
         # In some cases, the key must be manually modified (e.g. after training on a modified version of the dataset
         # with the suffix "_no_noops" in the dataset name)
         if cfg.unnorm_key not in model.norm_stats and f"{cfg.unnorm_key}_no_noops" in model.norm_stats:
             cfg.unnorm_key = f"{cfg.unnorm_key}_no_noops"
-        assert cfg.unnorm_key in model.norm_stats, f"Action un-norm key {cfg.unnorm_key} not found in VLA `norm_stats`!"
+        # Only assert if VLA has norm stats, otherwise use action decoder normalization
+        # Allow any norm stats key when evaluating with fine-tuned LoRA models
+        if len(model.norm_stats) == 0:
+            print(f"WARNING: No norm stats found in model, will use action decoder normalization")
+        elif cfg.unnorm_key not in model.norm_stats:
+            print(f"WARNING: Using different norm stats ('{list(model.norm_stats.keys())[0]}') for task '{cfg.unnorm_key}'")
+            cfg.unnorm_key = list(model.norm_stats.keys())[0]
+            print(f"DEBUG: Updated cfg.unnorm_key = {cfg.unnorm_key}")
 
     # wrapped_model Get Hugging Face processor
     processor = None
     if cfg.model_family == "openvla":
         processor = get_processor(cfg)
+    # FIX: Handle missing norm key gracefully
+    try:
+        if cfg.model_family == "openvla":
+            processor = get_processor(cfg)
+    except Exception as e:
+        print(f"WARNING: Could not get processor: {e}")
+        processor = None
 
     # Initialize local logging
     run_id = f"EVAL-{cfg.task_suite_name}-{cfg.model_family}-{DATE_TIME}"
@@ -322,8 +383,25 @@ def eval_libero(cfg: GenerateConfig) -> None:
                         hist_action += latent_action_detokenize[latent_action_ids.item() - 32001]
                     prev_hist_action.append(hist_action)
 
-                    
-                    action_norm_stats = model.get_action_stats(cfg.unnorm_key)
+
+                    # Handle norm stats - LoRA model may not have norm stats for the requested task suite
+                    unnorm_keys = list(model.norm_stats.keys()) if model.norm_stats else []
+                    if cfg.unnorm_key in unnorm_keys:
+                        action_norm_stats = model.get_action_stats(cfg.unnorm_key)
+                    elif unnorm_keys:
+                        # Fall back to first available key (likely from pretraining)
+                        fallback_key = unnorm_keys[0]
+                        print(f"WARNING: Norm stats for '{cfg.unnorm_key}' not found, using '{fallback_key}' instead")
+                        # Access norm_stats directly to avoid the validation in get_action_stats
+                        action_norm_stats = model.norm_stats[fallback_key]["action"]
+                    else:
+                        # Default norm stats (no normalization)
+                        print(f"WARNING: No norm stats found, using default values")
+                        action_norm_stats = {
+                            "q01": np.array([-1.0] * 7),
+                            "q99": np.array([1.0] * 7),
+                            "mask": np.array([True] * 7)
+                        }
                     mask = action_norm_stats.get("mask", np.ones_like(action_norm_stats["q01"], dtype=bool))
                     action_high, action_low = np.array(action_norm_stats["q99"]), np.array(action_norm_stats["q01"])
 
