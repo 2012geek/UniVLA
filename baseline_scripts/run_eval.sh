@@ -22,7 +22,7 @@ set -e
 
 # Model configuration
 MODEL_FAMILY="openvla"
-BASE_VLA_PATH="/root/autodl-tmp/workspace/fangziyu/ckpt/univla-7b-bridge-pt"
+BASE_VLA_PATH="/root/autodl-tmp/workspace/hmx/ckpt/univla-7b-bridge-pt"
 PRETRAINED_CHECKPOINT="runs/univla-7b-bridge-pt+libero_spatial_no_noops+b8+lr-0.000175+lora-r32+dropout-0.0--end2end--image_aug=w-LowLevelDecoder-ws-12"
 
 # Use specific checkpoint step (e.g., action_decoder-30000.pt)

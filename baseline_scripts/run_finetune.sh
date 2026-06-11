@@ -27,7 +27,7 @@
 set -e
 
 # Path configuration
-VLA_PATH="/root/autodl-tmp/workspace/fangziyu/ckpt/univla-7b-bridge-pt"
+VLA_PATH="/root/autodl-tmp/workspace/hmx/ckpt/univla-7b-bridge-pt"
 DATA_ROOT_DIR="/LIBERO/modified_libero_rlds"
 RUN_DIR="runs"
 ADAPTER_TMP_DIR="adapter-tmp"
