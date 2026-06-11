@@ -10,8 +10,8 @@
 set -e
 
 # Path configuration
-VLA_PATH="/root/autodl-tmp/workspace/hmx/ckpt/univla-7b-bridge-pt"
-DATA_ROOT_DIR="/root/autodl-tmp/workspace/hmx/data"
+VLA_PATH="/root/autodl-tmp/workspace/fangziyu/ckpt/univla-7b-bridge-pt"
+DATA_ROOT_DIR="/root/autodl-tmp/workspace/fangziyu/data"
 RUN_DIR="/root/autodl-tmp/workspace/fangziyu/UniVLA/runs/PI05+libero_spatial_no_noops+b64+lr-0.00035--end2end--image_aug=w-LowLevelDecoder-ws-12"
 ADAPTER_TMP_DIR="adapter-tmp"
 
@@ -38,7 +38,7 @@ PI05_LAM_VOCAB_SIZE=512             # LAM vocab size
 PI05_LAM_NUM_TOKENS=4               # Number of LAM tokens
 PI05_USE_MULTI_TOKEN_PREDICTION=true  # Multi-token prediction
 # Correct path to pretrained PI05 checkpoint (from bridge pretraining)
-PI05_PRETRAINED_CHECKPOINT="/root/autodl-tmp/workspace/hmx/UniVLA/runs/pi05-bridge-pretrain+b1+x42/checkpoints/step-002500-epoch-00-loss=0.0000.pt"
+PI05_PRETRAINED_CHECKPOINT="/root/autodl-tmp/workspace/fangziyu/UniVLA/runs/pi05-bridge-pretrain+b1+x42/checkpoints/step-002500-epoch-00-loss=0.0000.pt"
 
 # PyTorch Compile Mode (for speed & memory optimization)
 COMPILE_MODE="max-autotune-no-cudagraphs"  # "default", "max-autotune", "max-autotune-no-cudagraphs", "reduce-overhead", or "none" to disable

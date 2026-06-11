@@ -225,7 +225,7 @@ class FinetuneConfig:
     pi05_pretrained_checkpoint: Optional[str] = None               # Path to pretrained PI05 checkpoint (.pt)
 
     vla_path: str = "/path/to/your/pretrained-univla-7b"            # Path to your local UniVLA path
-    lam_path: str = "/root/autodl-tmp/workspace/hmx/ckpt/univla-latent-action-model/lam-stage-2.ckpt"
+    lam_path: str = "/root/autodl-tmp/workspace/fangziyu/ckpt/univla-latent-action-model/lam-stage-2.ckpt"
 
     # Directory Paths
     data_root_dir: Path = Path("/LIBERO/modified_libero_rlds")      # Path to Open-X dataset directory

@@ -13,7 +13,7 @@ PI05 architecture:
 ## Test Scripts Location
 
 ```
-/root/autodl-tmp/workspace/hmx/UniVLA/
+/root/autodl-tmp/workspace/fangziyu/UniVLA/
 ├── test_pi05_training.py      # Pretraining test (synthetic data)
 ├── test_pi05_finetune.py      # Finetuning test (LIBERO dataset)
 ├── test_pi05_eval.py          # Evaluation pipeline test
@@ -28,7 +28,7 @@ Tests model loading, forward pass, and training loop without requiring datasets.
 ```bash
 source /root/miniconda3/etc/profile.d/conda.sh
 conda activate embodx
-cd /root/autodl-tmp/workspace/hmx/UniVLA
+cd /root/autodl-tmp/workspace/fangziyu/UniVLA
 python test_pi05_training.py
 ```
 
@@ -93,11 +93,11 @@ Tests LAM decoder loading and PI05 finetuning compatibility.
 ```bash
 source /root/miniconda3/etc/profile.d/conda.sh
 conda activate embodx
-cd /root/autodl-tmp/workspace/hmx/UniVLA
+cd /root/autodl-tmp/workspace/fangziyu/UniVLA
 python -c "
 import os, sys, torch
 os.environ['TORCH_HUB_DIR'] = '/home/nice/.cache/torch/hub'
-sys.path.insert(0, '/root/autodl-tmp/workspace/hmx/UniVLA')
+sys.path.insert(0, '/root/autodl-tmp/workspace/fangziyu/UniVLA')
 
 # Setup transformers check
 import types
@@ -115,7 +115,7 @@ vla = load_pi05(lam_vocab_size=512, lam_num_tokens=4).to(device)
 vla.freeze_backbones('align')
 
 # Load LAM
-lam_ckpt = torch.load('/root/autodl-tmp/workspace/hmx/ckpt/univla-latent-action-model/lam-stage-2.ckpt')['state_dict']
+lam_ckpt = torch.load('/root/autodl-tmp/workspace/fangziyu/ckpt/univla-latent-action-model/lam-stage-2.ckpt')['state_dict']
 lam_model = ControllableDINOLatentActionModel(...).to(device)
 
 # Training step
@@ -149,7 +149,7 @@ Tests action token generation and format compatibility.
 ```bash
 source /root/miniconda3/etc/profile.d/conda.sh
 conda activate embodx
-cd /root/autodl-tmp/workspace/hmx/UniVLA
+cd /root/autodl-tmp/workspace/fangziyu/UniVLA
 python test_pi05_eval.py
 ```
 
@@ -204,7 +204,7 @@ After tests pass, run full training:
 ```bash
 source /root/miniconda3/etc/profile.d/conda.sh
 conda activate embodx
-cd /root/autodl-tmp/workspace/hmx/UniVLA
+cd /root/autodl-tmp/workspace/fangziyu/UniVLA
 nohup python vla-scripts/train_pi05_bridge.py > train_pi05_bridge.log 2>&1 &
 ```
 
@@ -213,11 +213,11 @@ nohup python vla-scripts/train_pi05_bridge.py > train_pi05_bridge.log 2>&1 &
 ```bash
 source /root/miniconda3/etc/profile.d/conda.sh
 conda activate embodx
-cd /root/autodl-tmp/workspace/hmx/UniVLA
+cd /root/autodl-tmp/workspace/fangziyu/UniVLA
 python vla-scripts/finetune_libero_pi05.py \
     --use_pi05=True \
     --vla_path=<bridge_checkpoint_path> \
-    --lam_path=/root/autodl-tmp/workspace/hmx/ckpt/univla-latent-action-model/lam-stage-2.ckpt \
+    --lam_path=/root/autodl-tmp/workspace/fangziyu/ckpt/univla-latent-action-model/lam-stage-2.ckpt \
     --dataset_name=libero_spatial \
     --batch_size=4 \
     --max_steps=30000

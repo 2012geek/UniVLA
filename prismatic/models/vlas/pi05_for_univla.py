@@ -43,7 +43,7 @@ def load_lam_model(
 ) -> nn.Module:
     """Load the LAM (VQ-VAE) model for encoding/decoding actions."""
     import sys
-    sys.path.insert(0, '/root/autodl-tmp/workspace/hmx/UniVLA')
+    sys.path.insert(0, '/root/autodl-tmp/workspace/fangziyu/UniVLA')
 
     from latent_action_model.genie.modules.lam import ControllableDINOLatentActionModel
 

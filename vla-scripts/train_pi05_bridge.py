@@ -100,7 +100,7 @@ class TrainConfig:
     )
 
     # PI05 specific settings
-    lam_checkpoint_path: str = "/root/autodl-tmp/workspace/hmx/ckpt/univla-latent-action-model/lam-stage-2.ckpt"
+    lam_checkpoint_path: str = "/root/autodl-tmp/workspace/fangziyu/ckpt/univla-latent-action-model/lam-stage-2.ckpt"
     lam_vocab_size: int = 512
     lam_num_tokens: int = 4
     use_multi_token_prediction: bool = True
@@ -115,8 +115,8 @@ class TrainConfig:
     codebook_size: int = 16
 
     # Directory Paths
-    data_root_dir: Path = Path("/root/autodl-tmp/workspace/hmx/data")
-    run_root_dir: Path = Path("/root/autodl-tmp/workspace/hmx/UniVLA/runs")
+    data_root_dir: Path = Path("/root/autodl-tmp/workspace/fangziyu/data")
+    run_root_dir: Path = Path("/root/autodl-tmp/workspace/fangziyu/UniVLA/runs")
 
     # Resume Run Parameters
     pretrained_checkpoint: Optional[Path] = None
